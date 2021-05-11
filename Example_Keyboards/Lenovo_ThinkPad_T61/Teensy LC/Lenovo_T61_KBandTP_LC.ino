@@ -22,8 +22,34 @@
 // Rev 1.0 - Nov 20, 2018 - Original Release
 // Rev 1.1 - Dec 2, 2018 - Replaced ps/2 trackpoint code from playground arduino with my own code 
 // Rev 1.2 - July 16, 2019 - Check if slots are full when detecting a key press
+// Rev 1.3 - Some time 2021 idk, pinkpad stuff. - Add a few extensions for media keys and things
 //
 #define MODIFIERKEY_FN 0x8f   // give Fn key a HID code
+
+//application control keys
+#define KEY_FORWARD (0xE400 + 0x225)
+#define KEY_BACK    (0xE400 + 0x224)
+
+//media keys
+#define KEY_STOP      (0xE400 | 0xB7)
+#define KEY_PLAYPAUSE (0xE400 | 0xCD)
+#define KEY_NEXT      (0xE400 | 0xB5)
+#define KEY_PREVIOUS  (0xE400 | 0xB6)
+
+//ACPI key
+#define KEY_SLEEP (0xE200 | 0x82)
+
+//nonstandard microsoft extensions
+#define KEY_BRIGHTNESS_UP   (0xE400 | 0x6F)
+#define KEY_BRIGHTNESS_DOWN (0xE400 | 0x70)
+#define KEY_RADIO_TOGGLE    (0xE200 | 0xC6) //doesnt even work, thanks MS
+
+//just do whatever with this later on
+#define KEY_THINKVANTAGE 0
+
+
+
+
 // Trackpoint signals
 #define TP_DATA 0   // ps/2 data to trackpoint (via BSS138 level translator)
 #define TP_CLK 1    // ps/2 clock to trackpoint (via BSS138 level translator)
@@ -66,13 +92,13 @@ int modifier[rows_max][cols_max] = {
   {0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0},   
   {0,0,0,0,0,0,0,0},
-  {0,0,0,0,MODIFIERKEY_FN,0,0,0},
+  {0,0,0,0,MODIFIERKEY_LEFT_CTRL,0,0,0},
   {0,0,0,0,0,0,0,0},
   {0,0,MODIFIERKEY_GUI,0,0,0,0,0},    
   {0,0,0,0,0,0,0,0},
   {0,0,0,0,0,MODIFIERKEY_LEFT_ALT,0,MODIFIERKEY_RIGHT_ALT},
   {0,0,0,MODIFIERKEY_LEFT_SHIFT,0,0,MODIFIERKEY_RIGHT_SHIFT,0},
-  {MODIFIERKEY_LEFT_CTRL,0,0,0,0,0,MODIFIERKEY_RIGHT_CTRL,0}
+  {MODIFIERKEY_FN,0,0,0,0,0,MODIFIERKEY_RIGHT_CTRL,0}
 };
 // Load the media key matrix with key names at the correct row-column location. 
 // A zero indicates no media key at that location.
@@ -87,8 +113,8 @@ int media[rows_max][cols_max] = {
   {0,0,0,0,0,0,0,0},   
   {0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0},
-  {0,0,KEY_MEDIA_VOLUME_INC,KEY_MEDIA_VOLUME_DEC,KEY_MEDIA_MUTE,0,0,0},
-  {0,0,0,0,0,0,0,0},   
+  {0,0,KEY_MEDIA_VOLUME_INC,KEY_MEDIA_VOLUME_DEC,KEY_MEDIA_MUTE,KEY_THINKVANTAGE,0,0},
+  {0,0,0,0,0,0,KEY_BACK,KEY_FORWARD},   
   {0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0},
@@ -526,6 +552,10 @@ void send_normals() {
 //************************************Setup*******************************************
 void setup() {
 // ************trackpoint setup
+  go_1(CAPS_LED); //power reset
+  delay(100);
+  go_0(CAPS_LED);
+  
   trackpoint_init(); // reset trackpoint, then set it's resolution and put it in remote mode 
   if (trackpoint_error) {
     trackpoint_init(); // try one more time to initialize the trackpoint
@@ -538,7 +568,7 @@ void setup() {
   for (int b = 0; b < rows_max; b++) {  // loop thru all row pins 
     go_z(Row_IO[b]); // set each row pin as a floating output
   }  
-//  
+//
 }
 //
 // *******declare and initialize trackpoint variables  
@@ -605,23 +635,53 @@ void loop() {
           old_key[x][y] = LOW; // Save state of key as "pressed"
           if ((normal[x][y] == KEY_SCROLL_LOCK) && (!Fn_pressed)) { // check for special case of Num Lock Key
             load_slot(KEY_NUM_LOCK); // update first available slot with Num Lock instead of Scroll Lock
-            send_normals(); // send all slots over USB including the Num Lock Key that just got pressed
+          } else if ((normal[x][y] == KEY_UP) && (!Fn_pressed)) { //media keys
+            Keyboard.press(KEY_STOP);
+          } else if ((normal[x][y] == KEY_DOWN) && (!Fn_pressed)) {
+            Keyboard.press(KEY_PLAYPAUSE);
+          } else if ((normal[x][y] == KEY_RIGHT) && (!Fn_pressed)) {
+            Keyboard.press(KEY_NEXT);
+          } else if ((normal[x][y] == KEY_LEFT) && (!Fn_pressed)) {
+            Keyboard.press(KEY_PREVIOUS);
+          } else if ((normal[x][y] == KEY_F4) && (!Fn_pressed)) {
+            Keyboard.press(KEY_SLEEP);
+          } else if ((normal[x][y] == KEY_F5) && (!Fn_pressed)) {
+            Keyboard.press(KEY_RADIO_TOGGLE);
+          } else if ((normal[x][y] == KEY_HOME) && (!Fn_pressed)) {
+            Keyboard.press(KEY_BRIGHTNESS_UP);
+          } else if ((normal[x][y] == KEY_END) && (!Fn_pressed)) {
+            Keyboard.press(KEY_BRIGHTNESS_DOWN);
           }
           else {
             load_slot(normal[x][y]); //update first available slot with normal key name
-            send_normals(); // send all slots over USB including the key that just got pressed 
           }
+          send_normals(); // send all slots over USB including the key that just got pressed 
         }          
         else if (digitalRead(Col_IO[y]) && (!old_key[x][y])) { //check if key is not pressed, but was previously pressed
           old_key[x][y] = HIGH; // Save state of key as "not pressed"
           if ((normal[x][y] == KEY_SCROLL_LOCK) && (!Fn_pressed)) { // check for special case of Num Lock Key
             clear_slot(KEY_NUM_LOCK); // clear the slot that contains Num Lock
-            send_normals(); // send all slots over USB including the Num Lock key
+          } else if ((normal[x][y] == KEY_UP) && (!Fn_pressed)) { //media keys
+            Keyboard.release(KEY_STOP);
+          } else if ((normal[x][y] == KEY_DOWN) && (!Fn_pressed)) {
+            Keyboard.release(KEY_PLAYPAUSE);
+          } else if ((normal[x][y] == KEY_RIGHT) && (!Fn_pressed)) {
+            Keyboard.release(KEY_NEXT);
+          } else if ((normal[x][y] == KEY_LEFT) && (!Fn_pressed)) {
+            Keyboard.release(KEY_PREVIOUS);
+          } else if ((normal[x][y] == KEY_F4) && (!Fn_pressed)) {
+            Keyboard.release(KEY_SLEEP);
+          } else if ((normal[x][y] == KEY_F5) && (!Fn_pressed)) {
+            Keyboard.release(KEY_RADIO_TOGGLE);
+          } else if ((normal[x][y] == KEY_HOME) && (!Fn_pressed)) {
+            Keyboard.release(KEY_BRIGHTNESS_UP);
+          } else if ((normal[x][y] == KEY_END) && (!Fn_pressed)) {
+            Keyboard.release(KEY_BRIGHTNESS_DOWN);
           }
           else {
             clear_slot(normal[x][y]); //clear the slot that contains the normal key name
-            send_normals(); // send all slots over USB including the key that was just released 
           }
+          send_normals(); // send all slots over USB including the key that was just released 
         }
       } 
 // **************end of normal section
@@ -660,14 +720,14 @@ void loop() {
     over_flow = 1; // set the overflow flag
   }   
 // change the x data from 9 bit to 8 bit 2's complement
-  mx = mx >> 1; // convert to 7 bits by dividing by 2 (comment this line out if you want more responsive TP)
+  //mx = mx >> 1; // convert to 7 bits by dividing by 2 (comment this line out if you want more responsive TP)
   mx = mx & 0x7f; // don't allow sign extension
   if ((0x10 & mstat) == 0x10) {   // move the sign into 
     mx = 0x80 | mx;              // the 8th bit position
   } 
 // change the y data from 9 bit to 8 bit 2's complement and then take the 2's complement 
 // because y movement on ps/2 format is opposite of touchpad.move function
-  my = my >> 1; // convert to 7 bits by dividing by 2 (comment this line out if you want more responsive TP)
+  //my = my >> 1; // convert to 7 bits by dividing by 2 (comment this line out if you want more responsive TP)
   my = my & 0x7f; // don't allow sign extension
   if ((0x20 & mstat) == 0x20) {   // move the sign into 
     my = 0x80 | my;              // the 8th bit position
@@ -718,13 +778,13 @@ void loop() {
 // *******keyboard LEDs
 // Turn on or off the LED for Caps Lock based on bit 1 from the keyboard_leds variable controlled by the USB host computer
 //
-  if (keyboard_leds & 1<<1) {  // mask off all bits but D1 and test if set
+/*  if (keyboard_leds & 1<<1) {  // mask off all bits but D1 and test if set
     go_1(CAPS_LED); // turn on the Caps Lock LED
   }
   else {
     go_0(CAPS_LED); // turn off the Caps Lock LED
   }
-//
+//*/
 // ****************End of main loop
 //
   delay(24); // The overall keyboard/trackpoint scanning rate was measured at 30ms
