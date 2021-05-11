@@ -10,6 +10,6 @@
 2x 0.1uf 0603 Capacitor
 ```
 
-If you'd like to order the board directly, I recommend ordering [This OSHPark project](https://oshpark.com/shared_projects/3l395XbG)
+If you'd like to order the unpopulated board directly, I recommend ordering [This OSHPark project](https://oshpark.com/shared_projects/3l395XbG)
 
 This board is based on [HDR/USB_Laptop_Keyboard_Controller](https://github.com/HDR/USB_Laptop_Keyboard_Controller), I've just removed the need for a reset generator in exchange for getting rid of the caps lock LED.
